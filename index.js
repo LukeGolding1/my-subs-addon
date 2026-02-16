@@ -55,7 +55,7 @@ builder.defineSubtitlesHandler(async ({ type, id }) => {
                 id: `mysubs-${i}`,
                 url: blob.url,
                 lang: 'eng',
-                SubFileName: blob.pathname
+                SubFileName: `[My Subs] ${blob.pathname}`
             }));
 
         console.log(`[MySubs] ${prefix}: found ${subtitles.length} subtitle(s)`);
