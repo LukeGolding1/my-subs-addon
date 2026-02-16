@@ -250,6 +250,12 @@ a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom
   <h2>Dual Subtitles</h2>
   <p style="font-size:0.85rem; opacity:0.7; margin-bottom:0.8rem;">Upload two .srt files to merge into one dual-language subtitle.</p>
   <form id="mergeForm">
+    <label>Type</label>
+    <div class="type-toggle">
+      <button type="button" class="active" data-type="movie" onclick="setMergeType('movie')">Movie</button>
+      <button type="button" data-type="series" onclick="setMergeType('series')">Series</button>
+    </div>
+
     <label for="mergeSearch">Search Title</label>
     <div class="search-wrap">
       <input type="text" id="mergeSearch" placeholder="Search for a movie or series..." autocomplete="off">
@@ -509,6 +515,12 @@ let mergeSearchTimeout = null;
 const mergeSearchInput = document.getElementById('mergeSearch');
 const mergeSearchResults = document.getElementById('mergeSearchResults');
 
+function setMergeType(t) {
+  mergeType = t;
+  document.querySelectorAll('.merge-card .type-toggle button').forEach(b => b.classList.toggle('active', b.dataset.type === t));
+  document.getElementById('mergeSeriesFields').classList.toggle('show', t === 'series');
+}
+
 mergeSearchInput.addEventListener('input', () => {
   clearTimeout(mergeSearchTimeout);
   const q = mergeSearchInput.value.trim();
@@ -560,8 +572,8 @@ function selectMergeTitle(m) {
   document.getElementById('mergeSelectedTitle').classList.add('show');
   mergeSearchInput.style.display = 'none';
   mergeSearchResults.classList.remove('show');
-  if (m.type === 'series') { mergeType = 'series'; document.getElementById('mergeSeriesFields').classList.add('show'); }
-  else { mergeType = 'movie'; document.getElementById('mergeSeriesFields').classList.remove('show'); }
+  if (m.type === 'series') setMergeType('series');
+  else setMergeType('movie');
 }
 
 function clearMergeSelection() {
