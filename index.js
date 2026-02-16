@@ -142,6 +142,13 @@ a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom
 .selected-title .meta { font-size: 0.75rem; opacity: 0.5; }
 .selected-title .clear-btn { background: none; border: none; color: #a78bfa; cursor: pointer; font-size: 1.2rem; padding: 0.2rem 0.5rem; }
 .search-loading { padding: 0.8rem; text-align: center; opacity: 0.5; font-size: 0.85rem; }
+.install-card { border: 1px solid #8A5AAB; }
+.install-url { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; }
+.install-url input { flex: 1; margin-bottom: 0; font-size: 0.8rem; }
+.install-url button { padding: 0.6rem 1rem; background: #2a2a4a; color: #e0e0e0; border: 1px solid #333; border-radius: 6px; cursor: pointer; font-size: 0.8rem; white-space: nowrap; }
+.install-url button:hover { background: #3a3a5a; }
+.install-btn { display: block; width: 100%; padding: 0.75rem; background: #8A5AAB; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; text-decoration: none; text-align: center; transition: opacity 0.2s; }
+.install-btn:hover { opacity: 0.85; }
 </style>
 </head>
 <body>
@@ -200,7 +207,15 @@ a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom
   <div id="blobListContainer"><p class="empty">Loading...</p></div>
 </div>
 
-<a class="back" href="/">Back to Install page</a>
+<div class="card install-card">
+  <h2>Install Addon</h2>
+  <p style="font-size:0.85rem; opacity:0.7; margin-bottom:0.8rem;">Copy the manifest URL or click install to add to Stremio:</p>
+  <div class="install-url">
+    <input type="text" id="manifestUrl" readonly>
+    <button onclick="copyManifest()">Copy</button>
+  </div>
+  <a class="install-btn" id="installBtn" href="#">Install to Stremio</a>
+</div>
 
 <script>
 let contentType = 'movie';
@@ -365,6 +380,19 @@ async function loadBlobs() {
   } catch (err) { container.innerHTML = '<p class="empty">Failed to load list.</p>'; }
 }
 loadBlobs();
+
+// --- Install Link ---
+const manifestPath = location.origin + '/manifest.json';
+document.getElementById('manifestUrl').value = manifestPath;
+document.getElementById('installBtn').href = 'stremio://' + location.host + '/manifest.json';
+
+function copyManifest() {
+  navigator.clipboard.writeText(manifestPath).then(() => {
+    const btn = document.querySelector('.install-url button');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
 </script>
 </body>
 </html>`;
