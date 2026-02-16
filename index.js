@@ -148,6 +148,15 @@ a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom
 .selected-title .meta { font-size: 0.75rem; opacity: 0.5; }
 .selected-title .clear-btn { background: none; border: none; color: #a78bfa; cursor: pointer; font-size: 1.2rem; padding: 0.2rem 0.5rem; }
 .search-loading { padding: 0.8rem; text-align: center; opacity: 0.5; font-size: 0.85rem; }
+.merge-card { border: 1px solid #a78bfa; }
+.merge-card h2 { color: #a78bfa; }
+.merge-row { display: flex; gap: 0.8rem; margin-bottom: 0.8rem; }
+.merge-row > div { flex: 1; }
+.merge-row label { font-size: 0.8rem; }
+.merge-file-drop { border: 2px dashed #333; border-radius: 8px; padding: 1rem; text-align: center; cursor: pointer; transition: border-color 0.2s; margin-bottom: 0.5rem; font-size: 0.85rem; }
+.merge-file-drop:hover, .merge-file-drop.dragover { border-color: #a78bfa; }
+.merge-file-drop input { display: none; }
+.merge-file-drop .selected { color: #a78bfa; font-weight: 600; }
 .install-card { border: 1px solid #8A5AAB; }
 .install-url { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; }
 .install-url input { flex: 1; margin-bottom: 0; font-size: 0.8rem; }
@@ -235,6 +244,83 @@ a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom
 <div class="card">
   <h2>Uploaded Subtitles</h2>
   <div id="blobListContainer"><p class="empty">Loading...</p></div>
+</div>
+
+<div class="card merge-card">
+  <h2>Dual Subtitles</h2>
+  <p style="font-size:0.85rem; opacity:0.7; margin-bottom:0.8rem;">Upload two .srt files to merge into one dual-language subtitle.</p>
+  <form id="mergeForm">
+    <label for="mergeSearch">Search Title</label>
+    <div class="search-wrap">
+      <input type="text" id="mergeSearch" placeholder="Search for a movie or series..." autocomplete="off">
+      <div class="search-results" id="mergeSearchResults"></div>
+    </div>
+    <div class="selected-title" id="mergeSelectedTitle">
+      <img id="mergeSelectedPoster" src="" alt="">
+      <div class="info">
+        <div class="title" id="mergeSelectedName"></div>
+        <div class="meta" id="mergeSelectedMeta"></div>
+      </div>
+      <button type="button" class="clear-btn" onclick="clearMergeSelection()">&times;</button>
+    </div>
+    <input type="hidden" id="mergeImdbId" required>
+
+    <div class="series-fields row" id="mergeSeriesFields">
+      <div>
+        <label for="mergeSeason">Season</label>
+        <input type="number" id="mergeSeason" min="1" placeholder="1">
+      </div>
+      <div>
+        <label for="mergeEpisode">Episode</label>
+        <input type="number" id="mergeEpisode" min="1" placeholder="1">
+      </div>
+    </div>
+
+    <div class="merge-row">
+      <div>
+        <label>Top subtitle</label>
+        <select id="mergeLang1" style="margin-bottom:0.5rem;">
+          <option value="eng">English</option>
+          <option value="chi">Chinese</option>
+          <option value="por">Portuguese</option>
+          <option value="spa">Spanish</option>
+          <option value="fre">French</option>
+          <option value="ger">German</option>
+          <option value="jpn">Japanese</option>
+          <option value="kor">Korean</option>
+          <option value="ara">Arabic</option>
+          <option value="hin">Hindi</option>
+          <option value="rus">Russian</option>
+        </select>
+        <div class="merge-file-drop" onclick="document.getElementById('mergeFile1').click()">
+          <input type="file" id="mergeFile1" accept=".srt" required>
+          <div id="mergeLabel1">Drop .srt here</div>
+        </div>
+      </div>
+      <div>
+        <label>Bottom subtitle</label>
+        <select id="mergeLang2" style="margin-bottom:0.5rem;">
+          <option value="chi">Chinese</option>
+          <option value="eng">English</option>
+          <option value="por">Portuguese</option>
+          <option value="spa">Spanish</option>
+          <option value="fre">French</option>
+          <option value="ger">German</option>
+          <option value="jpn">Japanese</option>
+          <option value="kor">Korean</option>
+          <option value="ara">Arabic</option>
+          <option value="hin">Hindi</option>
+          <option value="rus">Russian</option>
+        </select>
+        <div class="merge-file-drop" onclick="document.getElementById('mergeFile2').click()">
+          <input type="file" id="mergeFile2" accept=".srt" required>
+          <div id="mergeLabel2">Drop .srt here</div>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" id="mergeBtn" style="width:100%; padding:0.75rem; background:#a78bfa; color:white; border:none; border-radius:8px; font-size:1rem; font-weight:600; cursor:pointer;">Merge & Upload</button>
+  </form>
 </div>
 
 <div class="card install-card">
@@ -412,6 +498,107 @@ async function loadBlobs() {
 }
 loadBlobs();
 
+// --- Merge Dual Subs ---
+let mergeType = 'movie';
+let mergeSearchTimeout = null;
+const mergeSearchInput = document.getElementById('mergeSearch');
+const mergeSearchResults = document.getElementById('mergeSearchResults');
+
+mergeSearchInput.addEventListener('input', () => {
+  clearTimeout(mergeSearchTimeout);
+  const q = mergeSearchInput.value.trim();
+  if (q.length < 2) { mergeSearchResults.classList.remove('show'); return; }
+  mergeSearchTimeout = setTimeout(() => searchMergeTitles(q), 350);
+});
+
+mergeSearchInput.addEventListener('focus', () => {
+  if (mergeSearchResults.children.length > 0 && !document.getElementById('mergeImdbId').value)
+    mergeSearchResults.classList.add('show');
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.merge-card .search-wrap')) mergeSearchResults.classList.remove('show');
+});
+
+async function searchMergeTitles(query) {
+  mergeSearchResults.innerHTML = '<div class="search-loading">Searching...</div>';
+  mergeSearchResults.classList.add('show');
+  try {
+    const url = 'https://v3-cinemeta.strem.io/catalog/' + mergeType + '/top/search=' + encodeURIComponent(query) + '.json';
+    const res = await fetch(url);
+    const data = await res.json();
+    const metas = (data.metas || []).slice(0, 8);
+    if (metas.length === 0) { mergeSearchResults.innerHTML = '<div class="search-loading">No results</div>'; return; }
+    mergeSearchResults.innerHTML = '';
+    metas.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'search-result';
+      div.innerHTML = '<img src="' + (m.poster || '') + '" alt="" onerror="this.style.display=\\'none\\'">'
+        + '<div class="info"><div class="title">' + (m.name || '') + '</div>'
+        + '<div class="meta">' + (m.releaseInfo || '') + ' &middot; ' + m.id + '</div></div>';
+      div.onclick = () => selectMergeTitle(m);
+      mergeSearchResults.appendChild(div);
+    });
+  } catch (err) { mergeSearchResults.innerHTML = '<div class="search-loading">Search failed</div>'; }
+}
+
+function selectMergeTitle(m) {
+  document.getElementById('mergeImdbId').value = m.id;
+  document.getElementById('mergeSelectedName').textContent = m.name || '';
+  document.getElementById('mergeSelectedMeta').textContent = (m.releaseInfo || '') + ' \\u00b7 ' + m.id;
+  document.getElementById('mergeSelectedPoster').src = m.poster || '';
+  document.getElementById('mergeSelectedTitle').classList.add('show');
+  mergeSearchInput.style.display = 'none';
+  mergeSearchResults.classList.remove('show');
+  if (m.type === 'series') { mergeType = 'series'; document.getElementById('mergeSeriesFields').classList.add('show'); }
+  else { mergeType = 'movie'; document.getElementById('mergeSeriesFields').classList.remove('show'); }
+}
+
+function clearMergeSelection() {
+  document.getElementById('mergeImdbId').value = '';
+  document.getElementById('mergeSelectedTitle').classList.remove('show');
+  mergeSearchInput.style.display = '';
+  mergeSearchInput.value = '';
+  mergeSearchInput.focus();
+}
+
+// Merge file inputs
+['mergeFile1','mergeFile2'].forEach((id, i) => {
+  const input = document.getElementById(id);
+  const label = document.getElementById('mergeLabel' + (i+1));
+  input.addEventListener('change', () => {
+    if (input.files.length) { label.className = 'selected'; label.textContent = input.files[0].name; }
+    else { label.className = ''; label.textContent = 'Drop .srt here'; }
+  });
+});
+
+document.getElementById('mergeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('mergeBtn');
+  btn.disabled = true; btn.textContent = 'Merging...';
+
+  const fd = new FormData();
+  fd.append('sub1', document.getElementById('mergeFile1').files[0]);
+  fd.append('sub2', document.getElementById('mergeFile2').files[0]);
+  fd.append('lang1', document.getElementById('mergeLang1').value);
+  fd.append('lang2', document.getElementById('mergeLang2').value);
+  fd.append('imdbId', document.getElementById('mergeImdbId').value.trim());
+  fd.append('type', mergeType);
+  if (mergeType === 'series') {
+    fd.append('season', document.getElementById('mergeSeason').value);
+    fd.append('episode', document.getElementById('mergeEpisode').value);
+  }
+
+  try {
+    const res = await fetch('/api/merge', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (res.ok) { showMsg('Merged & uploaded: ' + data.pathname, 'success'); loadBlobs(); }
+    else showMsg(data.error || 'Merge failed', 'error');
+  } catch (err) { showMsg('Network error: ' + err.message, 'error'); }
+
+  btn.disabled = false; btn.textContent = 'Merge & Upload';
+});
+
 // --- Install Link ---
 const manifestPath = location.origin + '/manifest.json';
 document.getElementById('manifestUrl').value = manifestPath;
@@ -510,6 +697,112 @@ app.post('/api/upload', upload.single('subtitle'), async (req, res) => {
     } catch (err) {
         console.error('[MySubs] Upload error:', err.message);
         res.status(500).json({ error: 'Upload failed: ' + err.message });
+    }
+});
+
+// Merge API - combine two subtitle files into one dual-language subtitle
+const mergeUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } }).fields([
+    { name: 'sub1', maxCount: 1 },
+    { name: 'sub2', maxCount: 1 }
+]);
+
+function parseSrt(text) {
+    const blocks = text.replace(/\r\n/g, '\n').trim().split(/\n\n+/);
+    return blocks.map(block => {
+        const lines = block.split('\n');
+        if (lines.length < 3) return null;
+        const timeLine = lines.find(l => l.includes('-->'));
+        if (!timeLine) return null;
+        const [startStr, endStr] = timeLine.split('-->').map(s => s.trim());
+        const textContent = lines.slice(lines.indexOf(timeLine) + 1).join('\n');
+        return { start: srtTimeToMs(startStr), end: srtTimeToMs(endStr), text: textContent };
+    }).filter(Boolean);
+}
+
+function srtTimeToMs(t) {
+    const [h, m, rest] = t.split(':');
+    const [s, ms] = rest.split(',');
+    return (+h * 3600 + +m * 60 + +s) * 1000 + +ms;
+}
+
+function msToSrtTime(ms) {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    const mil = ms % 1000;
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0') + ',' + String(mil).padStart(3,'0');
+}
+
+function mergeSubs(srt1, srt2) {
+    const subs1 = parseSrt(srt1);
+    const subs2 = parseSrt(srt2);
+    // Combine all cues, matching by overlapping timestamps
+    const merged = [];
+    let j = 0;
+    for (const s1 of subs1) {
+        // Find matching cue in subs2 (overlapping time)
+        let match = null;
+        for (let k = j; k < subs2.length; k++) {
+            if (subs2[k].start <= s1.end && subs2[k].end >= s1.start) {
+                match = subs2[k];
+                j = k;
+                break;
+            }
+            if (subs2[k].start > s1.end) break;
+        }
+        const text = match ? s1.text + '\n' + match.text : s1.text;
+        merged.push({ start: s1.start, end: s1.end, text });
+    }
+    // Add any subs2 cues that didn't get matched
+    for (const s2 of subs2) {
+        const alreadyIncluded = merged.some(m => m.start <= s2.end && m.end >= s2.start);
+        if (!alreadyIncluded) {
+            merged.push({ start: s2.start, end: s2.end, text: s2.text });
+        }
+    }
+    merged.sort((a, b) => a.start - b.start);
+    return merged.map((m, i) =>
+        (i + 1) + '\n' + msToSrtTime(m.start) + ' --> ' + msToSrtTime(m.end) + '\n' + m.text
+    ).join('\n\n');
+}
+
+app.post('/api/merge', mergeUpload, async (req, res) => {
+    try {
+        const { imdbId, type, season, episode, lang1, lang2 } = req.body;
+
+        if (!imdbId || !/^tt\d+$/.test(imdbId)) {
+            return res.status(400).json({ error: 'Invalid IMDB ID.' });
+        }
+        if (!req.files || !req.files.sub1 || !req.files.sub2) {
+            return res.status(400).json({ error: 'Two subtitle files required.' });
+        }
+
+        const srt1 = req.files.sub1[0].buffer.toString('utf-8');
+        const srt2 = req.files.sub2[0].buffer.toString('utf-8');
+        const mergedContent = mergeSubs(srt1, srt2);
+
+        const langLabel = (lang1 || 'eng') + '-' + (lang2 || 'chi');
+        let filename;
+        if (type === 'series') {
+            if (!season || !episode) {
+                return res.status(400).json({ error: 'Season and episode required for series.' });
+            }
+            filename = `${imdbId}_S${season}E${episode}_${langLabel}.srt`;
+        } else {
+            filename = `${imdbId}_${langLabel}.srt`;
+        }
+
+        const blob = await put(filename, mergedContent, {
+            access: 'public',
+            addRandomSuffix: false,
+            contentType: 'text/srt; charset=utf-8'
+        });
+
+        console.log(`[MySubs] Merged & uploaded: ${blob.pathname} -> ${blob.url}`);
+        res.json({ pathname: blob.pathname, url: blob.url });
+    } catch (err) {
+        console.error('[MySubs] Merge error:', err.message);
+        res.status(500).json({ error: 'Merge failed: ' + err.message });
     }
 });
 
