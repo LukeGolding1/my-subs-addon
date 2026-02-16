@@ -124,6 +124,24 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
 .blob-list .del-btn:hover { background: #a33; }
 .empty { opacity: 0.5; font-size: 0.85rem; }
 a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom: 1.5rem; }
+.search-wrap { position: relative; }
+.search-results { position: absolute; top: 100%; left: 0; right: 0; background: #1a1a35; border: 1px solid #333; border-radius: 6px; max-height: 250px; overflow-y: auto; z-index: 10; display: none; }
+.search-results.show { display: block; }
+.search-result { display: flex; align-items: center; padding: 0.5rem 0.7rem; cursor: pointer; gap: 0.7rem; border-bottom: 1px solid #222; }
+.search-result:last-child { border: none; }
+.search-result:hover { background: #252545; }
+.search-result img { width: 36px; height: 52px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.search-result .info { flex: 1; min-width: 0; }
+.search-result .title { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-result .meta { font-size: 0.75rem; opacity: 0.5; }
+.selected-title { display: none; align-items: center; gap: 0.7rem; padding: 0.5rem 0.7rem; background: #1a1a35; border: 1px solid #8A5AAB; border-radius: 6px; margin-bottom: 0.8rem; }
+.selected-title.show { display: flex; }
+.selected-title img { width: 36px; height: 52px; object-fit: cover; border-radius: 4px; }
+.selected-title .info { flex: 1; }
+.selected-title .title { font-size: 0.9rem; font-weight: 600; }
+.selected-title .meta { font-size: 0.75rem; opacity: 0.5; }
+.selected-title .clear-btn { background: none; border: none; color: #a78bfa; cursor: pointer; font-size: 1.2rem; padding: 0.2rem 0.5rem; }
+.search-loading { padding: 0.8rem; text-align: center; opacity: 0.5; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -141,8 +159,20 @@ a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom
       <button type="button" data-type="series" onclick="setType('series')">Series</button>
     </div>
 
-    <label for="imdbId">IMDB ID</label>
-    <input type="text" id="imdbId" name="imdbId" placeholder="tt1234567" required pattern="tt\\d+" title="Must start with tt followed by numbers">
+    <label for="searchInput">Search Title</label>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="Search for a movie or series..." autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <div class="selected-title" id="selectedTitle">
+      <img id="selectedPoster" src="" alt="">
+      <div class="info">
+        <div class="title" id="selectedName"></div>
+        <div class="meta" id="selectedMeta"></div>
+      </div>
+      <button type="button" class="clear-btn" onclick="clearSelection()">&times;</button>
+    </div>
+    <input type="hidden" id="imdbId" name="imdbId" required>
 
     <div class="series-fields row" id="seriesFields">
       <div>
@@ -174,11 +204,87 @@ a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom
 
 <script>
 let contentType = 'movie';
+let searchTimeout = null;
 
 function setType(t) {
   contentType = t;
   document.querySelectorAll('.type-toggle button').forEach(b => b.classList.toggle('active', b.dataset.type === t));
   document.getElementById('seriesFields').classList.toggle('show', t === 'series');
+  clearSelection();
+}
+
+// --- Title Search ---
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  const q = searchInput.value.trim();
+  if (q.length < 2) { searchResults.classList.remove('show'); return; }
+  searchTimeout = setTimeout(() => searchTitles(q), 350);
+});
+
+searchInput.addEventListener('focus', () => {
+  if (searchResults.children.length > 0 && !document.getElementById('imdbId').value) {
+    searchResults.classList.add('show');
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-wrap')) searchResults.classList.remove('show');
+});
+
+async function searchTitles(query) {
+  searchResults.innerHTML = '<div class="search-loading">Searching...</div>';
+  searchResults.classList.add('show');
+
+  try {
+    const url = 'https://v3-cinemeta.strem.io/catalog/' + contentType + '/top/search=' + encodeURIComponent(query) + '.json';
+    const res = await fetch(url);
+    const data = await res.json();
+    const metas = (data.metas || []).slice(0, 8);
+
+    if (metas.length === 0) {
+      searchResults.innerHTML = '<div class="search-loading">No results found</div>';
+      return;
+    }
+
+    searchResults.innerHTML = '';
+    metas.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'search-result';
+      const year = m.releaseInfo || m.year || '';
+      div.innerHTML = '<img src="' + (m.poster || '') + '" alt="" onerror="this.style.display=\\'none\\'">'
+        + '<div class="info"><div class="title">' + (m.name || '') + '</div>'
+        + '<div class="meta">' + year + ' &middot; ' + m.id + '</div></div>';
+      div.onclick = () => selectTitle(m);
+      searchResults.appendChild(div);
+    });
+  } catch (err) {
+    searchResults.innerHTML = '<div class="search-loading">Search failed</div>';
+  }
+}
+
+function selectTitle(m) {
+  document.getElementById('imdbId').value = m.id;
+  document.getElementById('selectedName').textContent = m.name || '';
+  document.getElementById('selectedMeta').textContent = (m.releaseInfo || m.year || '') + ' \\u00b7 ' + m.id;
+  document.getElementById('selectedPoster').src = m.poster || '';
+  document.getElementById('selectedTitle').classList.add('show');
+  searchInput.style.display = 'none';
+  searchResults.classList.remove('show');
+
+  // Auto-detect type from result
+  if (m.type === 'series' && contentType !== 'series') setType('series');
+  else if (m.type === 'movie' && contentType !== 'movie') setType('movie');
+}
+
+function clearSelection() {
+  document.getElementById('imdbId').value = '';
+  document.getElementById('selectedTitle').classList.remove('show');
+  searchInput.style.display = '';
+  searchInput.value = '';
+  searchInput.focus();
 }
 
 // File drop
