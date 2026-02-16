@@ -51,12 +51,18 @@ builder.defineSubtitlesHandler(async ({ type, id }) => {
         const { blobs } = await list({ prefix });
         const subtitles = blobs
             .filter(blob => blob.pathname.endsWith('.srt'))
-            .map((blob, i) => ({
-                id: `mysubs-${i}`,
-                url: blob.url,
-                lang: 'eng',
-                SubFileName: `[My Subs] ${blob.pathname}`
-            }));
+            .map((blob, i) => {
+                // Extract language from filename: tt1234567_eng.srt or tt1234567_S1E1_eng.srt
+                const name = blob.pathname.replace('.srt', '');
+                const parts = name.split('_');
+                const lang = parts[parts.length - 1] || 'eng';
+                return {
+                    id: `mysubs-${i}`,
+                    url: blob.url,
+                    lang: lang,
+                    SubFileName: `[My Subs] ${lang.toUpperCase()}`
+                };
+            });
 
         console.log(`[MySubs] ${prefix}: found ${subtitles.length} subtitle(s)`);
         return { subtitles };
@@ -191,6 +197,30 @@ a.back { color: #a78bfa; text-decoration: none; font-size: 0.9rem; margin-bottom
         <input type="number" id="episode" name="episode" min="1" placeholder="1">
       </div>
     </div>
+
+    <label for="lang">Language</label>
+    <select id="lang" name="lang">
+      <option value="eng">English</option>
+      <option value="por">Portuguese</option>
+      <option value="spa">Spanish</option>
+      <option value="fre">French</option>
+      <option value="ger">German</option>
+      <option value="ita">Italian</option>
+      <option value="dut">Dutch</option>
+      <option value="rus">Russian</option>
+      <option value="ara">Arabic</option>
+      <option value="jpn">Japanese</option>
+      <option value="kor">Korean</option>
+      <option value="chi">Chinese</option>
+      <option value="hin">Hindi</option>
+      <option value="tur">Turkish</option>
+      <option value="pol">Polish</option>
+      <option value="swe">Swedish</option>
+      <option value="nor">Norwegian</option>
+      <option value="dan">Danish</option>
+      <option value="fin">Finnish</option>
+      <option value="rum">Romanian</option>
+    </select>
 
     <label>Subtitle File (.srt)</label>
     <div class="file-drop" id="fileDrop" onclick="document.getElementById('file').click()">
@@ -334,6 +364,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
   fd.append('subtitle', fileInput.files[0]);
   fd.append('imdbId', document.getElementById('imdbId').value.trim());
   fd.append('type', contentType);
+  fd.append('lang', document.getElementById('lang').value);
   if (contentType === 'series') {
     fd.append('season', document.getElementById('season').value);
     fd.append('episode', document.getElementById('episode').value);
@@ -446,7 +477,8 @@ app.get('/upload', (req, res) => {
 // Upload API
 app.post('/api/upload', upload.single('subtitle'), async (req, res) => {
     try {
-        const { imdbId, type, season, episode } = req.body;
+        const { imdbId, type, season, episode, lang } = req.body;
+        const language = lang || 'eng';
 
         if (!imdbId || !/^tt\d+$/.test(imdbId)) {
             return res.status(400).json({ error: 'Invalid IMDB ID. Must be like tt1234567.' });
@@ -455,15 +487,15 @@ app.post('/api/upload', upload.single('subtitle'), async (req, res) => {
             return res.status(400).json({ error: 'No subtitle file provided.' });
         }
 
-        // Build filename
+        // Build filename with language code
         let filename;
         if (type === 'series') {
             if (!season || !episode) {
                 return res.status(400).json({ error: 'Season and episode required for series.' });
             }
-            filename = `${imdbId}_S${season}E${episode}.srt`;
+            filename = `${imdbId}_S${season}E${episode}_${language}.srt`;
         } else {
-            filename = `${imdbId}.srt`;
+            filename = `${imdbId}_${language}.srt`;
         }
 
         const content = req.file.buffer.toString('utf-8');
