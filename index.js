@@ -370,10 +370,14 @@ async function searchTitles(query) {
   searchResults.classList.add('show');
 
   try {
-    const url = 'https://v3-cinemeta.strem.io/catalog/' + contentType + '/top/search=' + encodeURIComponent(query) + '.json';
-    const res = await fetch(url);
-    const data = await res.json();
-    const metas = (data.metas || []).slice(0, 8);
+    const q = encodeURIComponent(query);
+    const [movieRes, seriesRes] = await Promise.all([
+      fetch('https://v3-cinemeta.strem.io/catalog/movie/top/search=' + q + '.json'),
+      fetch('https://v3-cinemeta.strem.io/catalog/series/top/search=' + q + '.json')
+    ]);
+    const movieData = await movieRes.json();
+    const seriesData = await seriesRes.json();
+    const metas = [...(movieData.metas || []), ...(seriesData.metas || [])].slice(0, 10);
 
     if (metas.length === 0) {
       searchResults.innerHTML = '<div class="search-loading">No results found</div>';
@@ -384,10 +388,11 @@ async function searchTitles(query) {
     metas.forEach(m => {
       const div = document.createElement('div');
       div.className = 'search-result';
+      const typeLabel = m.type === 'series' ? 'Series' : 'Movie';
       const year = m.releaseInfo || m.year || '';
       div.innerHTML = '<img src="' + (m.poster || '') + '" alt="" onerror="this.style.display=\\'none\\'">'
         + '<div class="info"><div class="title">' + (m.name || '') + '</div>'
-        + '<div class="meta">' + year + ' &middot; ' + m.id + '</div></div>';
+        + '<div class="meta">' + typeLabel + ' &middot; ' + year + ' &middot; ' + m.id + '</div></div>';
       div.onclick = () => selectTitle(m);
       searchResults.appendChild(div);
     });
@@ -524,18 +529,23 @@ async function searchMergeTitles(query) {
   mergeSearchResults.innerHTML = '<div class="search-loading">Searching...</div>';
   mergeSearchResults.classList.add('show');
   try {
-    const url = 'https://v3-cinemeta.strem.io/catalog/' + mergeType + '/top/search=' + encodeURIComponent(query) + '.json';
-    const res = await fetch(url);
-    const data = await res.json();
-    const metas = (data.metas || []).slice(0, 8);
+    const q = encodeURIComponent(query);
+    const [movieRes, seriesRes] = await Promise.all([
+      fetch('https://v3-cinemeta.strem.io/catalog/movie/top/search=' + q + '.json'),
+      fetch('https://v3-cinemeta.strem.io/catalog/series/top/search=' + q + '.json')
+    ]);
+    const movieData = await movieRes.json();
+    const seriesData = await seriesRes.json();
+    const metas = [...(movieData.metas || []), ...(seriesData.metas || [])].slice(0, 10);
     if (metas.length === 0) { mergeSearchResults.innerHTML = '<div class="search-loading">No results</div>'; return; }
     mergeSearchResults.innerHTML = '';
     metas.forEach(m => {
       const div = document.createElement('div');
       div.className = 'search-result';
+      const typeLabel = m.type === 'series' ? 'Series' : 'Movie';
       div.innerHTML = '<img src="' + (m.poster || '') + '" alt="" onerror="this.style.display=\\'none\\'">'
         + '<div class="info"><div class="title">' + (m.name || '') + '</div>'
-        + '<div class="meta">' + (m.releaseInfo || '') + ' &middot; ' + m.id + '</div></div>';
+        + '<div class="meta">' + typeLabel + ' &middot; ' + (m.releaseInfo || '') + ' &middot; ' + m.id + '</div></div>';
       div.onclick = () => selectMergeTitle(m);
       mergeSearchResults.appendChild(div);
     });
